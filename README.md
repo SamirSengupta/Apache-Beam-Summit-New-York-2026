@@ -21,7 +21,17 @@ LLMs into Apache Beam for Live Inference"* (Beam Summit 2026).
 
 *(Editable vector version: [architecture.svg](architecture.svg))*
 
-## How it works
+## Two versions
+
+| File | What it shows | When to use |
+|------|---------------|-------------|
+| `realtime_fraud_rag_beam.py` | The core idea in the simplest readable form: four `DoFn`s — stream → RAG → LLM → print. | Easiest to read; the reliable live demo. |
+| `advanced_pipeline.py` | The **Beam-native** version: `RunInference` + a custom `ModelHandler`, batched inference, fixed-window fraud-rate aggregation, Beam `Metrics`, and tagged FRAUD/cleared outputs. | The "production-shaped" walkthrough. |
+
+Both share the same RAG/LLM logic, so the decisions are identical — only the Beam
+wiring differs.
+
+## How it works (core pipeline)
 
 ```
 Create([None]) → StreamTransactions → RAG retrieve → LLM classify → print
@@ -41,6 +51,27 @@ The pipeline is four Beam transforms (`ParDo` / `DoFn`):
 Models and the vector index are loaded **once per worker** in `DoFn.setup()`, not
 per element — the key cost pattern for ML in Beam.
 
+## The Beam-native version (`advanced_pipeline.py`)
+
+Same fraud detection, wired the way a production Beam pipeline would be:
+
+- **`RunInference` + a custom `ModelHandler`** — the framework's standard way to
+  serve a model in a pipeline. Beam calls `load_model()` once per worker and
+  hands `run_inference()` a *batch* of elements.
+- **Batched inference** — `batch_elements_kwargs` controls batch size, the lever
+  for GPU saturation / cost.
+- **Fixed-window aggregation** — a rolling fraud-rate computed per time window
+  with event-time `TimestampedValue` + `FixedWindows`.
+- **Beam `Metrics`** — counters (`transactions_total`, `frauds_detected`,
+  `llm_fallbacks`) and distributions (`llm_latency_ms`, `risk_score`), queried
+  after the run.
+- **Tagged outputs** — the stream splits into a `fraud` branch and a `cleared`
+  branch, each of which could feed its own sink.
+
+```bash
+python advanced_pipeline.py
+```
+
 ## Quickstart
 
 ```bash
@@ -51,7 +82,8 @@ python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-python realtime_fraud_rag_beam.py
+python realtime_fraud_rag_beam.py        # simple version
+python advanced_pipeline.py              # Beam-native version
 ```
 
 Want to verify the logic without Beam or a live LLM?
@@ -94,8 +126,7 @@ rule-based classifier — output is tagged `(fallback)` instead of `(LLM)`.
 
 ## From demo to production
 
-The same five transforms run unchanged at scale; only the plugged-in components
-grow:
+The same transforms run unchanged at scale; only the plugged-in components grow:
 
 | In this demo | In production |
 |--------------|---------------|
@@ -112,7 +143,8 @@ else in the pipeline changes.
 
 ```
 .
-├── realtime_fraud_rag_beam.py   # the entire demo (heavily commented)
+├── realtime_fraud_rag_beam.py   # core demo (4 DoFns, heavily commented)
+├── advanced_pipeline.py         # Beam-native: RunInference, windowing, metrics
 ├── requirements.txt             # apache-beam, numpy (faiss optional)
 ├── architecture.png             # pipeline diagram (rendered, for viewing)
 ├── architecture.svg             # pipeline diagram (editable vector source)
@@ -127,7 +159,8 @@ else in the pipeline changes.
 ## Requirements
 
 Python 3.9+, `apache-beam` and `numpy`. `faiss-cpu` is optional — the demo
-automatically uses a numpy fallback if it isn't installed.
+automatically uses a numpy fallback if it isn't installed. `RunInference` ships
+with core `apache-beam`; no extra package is needed.
 
 ## License
 

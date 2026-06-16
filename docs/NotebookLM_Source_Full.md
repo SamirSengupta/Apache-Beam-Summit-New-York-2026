@@ -148,7 +148,53 @@ Each decision pops up with a risk meter and a short reason, live, as payments fl
 
 ---
 
-## Part 12 — The takeaways, in plain words
+## Part 12 — Making it "production-grade" (the version that impresses the experts)
+
+The simple version gets the idea across. But there's a more advanced version of
+the same conveyor belt that does everything the way seasoned engineers expect —
+and it's worth understanding, because that's where the real-world sturdiness comes
+from. Same belt, same job, just built more professionally. Here's what's different,
+all in plain terms.
+
+**A standard procedure for using the expert.** In the simple version, each worker
+basically improvised how they talked to the AI expert. In the professional version,
+the factory has one official procedure for bringing in any expert: how to get them
+set up once at the start of the shift, and how to hand them a small stack of cases
+at a time. Because it's a standard procedure, a lot comes for free — efficient
+handling of cases in batches, reusing the expert instead of re-hiring them for every
+case, and built-in measurement. Swapping one AI expert for another also becomes
+trivial, because they all follow the same procedure.
+
+**Handing over a small stack at a time.** Rather than giving the expert one case,
+waiting, then the next, the belt gathers a few cases and hands them over together.
+The expert works through the little stack far more efficiently than one at a time —
+the same reason it's faster to review a small pile of forms in one sitting than to
+be interrupted for each one. This is the main lever for speed and cost.
+
+**A live scoreboard by time window.** On top of judging each payment, the
+professional version keeps a rolling scoreboard. Every few seconds it posts a tally:
+"in this stretch of time, two out of three payments were fraud." It's like a
+lifeguard logging how many incidents happened each shift — you don't just react to
+each swimmer, you watch the trend over time. Keeping these time-bucketed tallies is
+one of the things this kind of tool is genuinely great at.
+
+**A dashboard of dials.** The professional version is wired up with gauges, like the
+instrument panel in a car: how many payments were processed, how many were fraud,
+how long the expert took to decide on average, and how confident it was. This is
+what lets a real operations team keep an eye on the system while it runs — and it's
+where the numbers you'd put on a slide come from.
+
+**A sorting junction at the end.** Finally, the finished items don't all go to the
+same place. At the end of the belt there's a fork: fraud cases get sent down one
+chute to the alerts team, and everything else goes down another chute to the records
+room. Real systems almost always fan out like this, routing different results to
+different destinations.
+
+None of this changes what the system *decides* — the brain is identical. It just
+makes the operation faster, observable, sturdier, and much closer to how you'd
+actually run it for real.
+
+## Part 13 — The takeaways, in plain words
 
 One tool lets you build a single "conveyor belt" for your data that runs the same whether it's a small test or a massive live system — so you build it once and grow into it. The most important habit is setting up your AI once per worker and reusing it, instead of reloading it for every item. The open-book trick lets the AI answer with fresh, relevant notes pulled from a library, so you improve the system by updating notes rather than retraining the AI. And because a live system never stops, you always keep a backup plan so it makes a sensible decision even when something breaks. The hard part of AI in the real world was never the model — it's everything around it: being fast, being cheap, and never breaking. A well-built belt is how you handle all three.
 

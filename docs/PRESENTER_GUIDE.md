@@ -204,3 +204,84 @@ that in production yet, let's talk after."* Totally fine; never bluff specifics.
 > on Dataflow against millions of events — the laptop just proves the pattern."
 
 If everything else leaves your head, that's the talk.
+
+
+---
+
+## 8. The Beam-native version (`advanced_pipeline.py`) — explained for the stage
+
+This is the file that makes the demo land with a Beam-literate audience. Below is
+every advanced piece in plain English, plus the one line to say about each. You do
+**not** need to run this file live — you can walk through it on screen and run the
+simple one. But if you do run it, run it once beforehand to be sure.
+
+**RunInference + a custom ModelHandler.**
+*What it is:* Beam's official, built-in way to run a model inside a pipeline. You
+write a small `ModelHandler` class with two methods: `load_model()` (Beam calls it
+once per worker) and `run_inference(batch, model)` (Beam hands it a *batch* of
+elements). Then you just drop `RunInference(MyHandler())` into the pipeline.
+*Why it matters:* it's the difference between "I called an API inside a function"
+and "I used the framework the way it's meant to be used." Beam gives you batching,
+model reuse, and metrics for free.
+*Say:* "Instead of calling the model by hand, I wrap it in a ModelHandler and let
+Beam's RunInference transform serve it — that's the same path you'd use for a
+HuggingFace or vLLM model, so this scales without changing shape."
+
+**Batched inference.**
+*What it is:* `batch_elements_kwargs` tells Beam to group elements (here 2–8) before
+calling the model, instead of one at a time.
+*Why it matters:* GPUs are far more efficient on a batch; this is the main
+throughput-and-cost lever from the abstract.
+*Say:* "Beam batches events for me before inference — in production you tune these
+numbers to keep the GPU saturated, which is how you get the cost per decision down."
+
+**Event-time windowing + a windowed fraud rate.**
+*What it is:* each transaction is stamped with an event time, and `FixedWindows`
+groups events into fixed time buckets (6 seconds here). A `CombineFn` then computes
+the fraud rate per window.
+*Why it matters:* this is the canonical streaming pattern — aggregating over time
+windows — and it's a Beam strength (windowing and late-data handling are built in).
+*Say:* "On top of per-event decisions, I aggregate over time windows to get a
+rolling fraud rate — and because this is event-time windowing, Beam handles
+out-of-order and late data for me."
+
+**Beam Metrics.**
+*What it is:* counters (transactions, frauds, fallbacks) and distributions (LLM
+latency, risk score) recorded inside the pipeline and queried after the run.
+*Why it matters:* it's production instrumentation — exactly what you'd wire into
+monitoring. It also lets you *show numbers* on stage.
+*Say:* "Everything is instrumented with Beam metrics — latency distribution, fraud
+counts, fallback counts — so the same code that runs the demo is observable in
+production."
+
+**Tagged outputs.**
+*What it is:* one `DoFn` emits to multiple named outputs; the stream splits into a
+`fraud` branch and a `cleared` branch.
+*Why it matters:* real pipelines fan out — fraud goes to an alerting queue, cleared
+transactions go to analytics. It shows you understand pipeline topology, not just a
+straight line.
+*Say:* "I split the stream with tagged outputs — fraud cases to an alert sink,
+everything else to analytics — which is how you'd route in production."
+
+### Extra Q&A this version invites
+
+**"Why RunInference instead of a DoFn?"** RunInference standardises model serving —
+batching, loading once per worker, metrics, and swappable model handlers (sklearn,
+PyTorch, TensorFlow, or a custom remote one like mine). A bare DoFn works but you
+re-implement all of that yourself.
+
+**"Is the LLM actually batched?"** Beam batches the *elements*; my handler then
+issues the calls. With a local model you'd feed the batch straight to the GPU; with
+a server like vLLM you rely on its continuous batching. The batching seam is the
+same either way.
+
+**"Committed vs attempted metrics?"** DirectRunner reports committed metrics; some
+runners only populate attempted until a bundle commits. The code handles both.
+
+### Demo safety reminder
+
+The simple file (`realtime_fraud_rag_beam.py`) is your guaranteed live run. Treat
+`advanced_pipeline.py` as the "walk through the code / run if confident" artifact.
+If the advanced run ever stumbles on stage, switch to the simple one and keep the
+narrative going — the audience can't tell which file is running, only that fraud is
+being caught in real time.
