@@ -1,5 +1,9 @@
 # Real-Time AI Pipelines at Scale — LLMs in Apache Beam
 
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)
+![Apache Beam](https://img.shields.io/badge/Apache%20Beam-2.66-orange.svg)
+
 Embedding an LLM + RAG directly into an **Apache Beam** streaming pipeline for
 live, per-event inference. A stream of credit-card transactions flows through the
 pipeline; for each one it retrieves similar known fraud patterns from a vector
@@ -13,7 +17,9 @@ LLMs into Apache Beam for Live Inference"* (Beam Summit 2026).
 > endpoint, and degrades to a transparent rule-based classifier if the LLM is
 > unreachable, so it never hard-fails.
 
-![Architecture](architecture.svg)
+![Architecture](architecture.png)
+
+*(Editable vector version: [architecture.svg](architecture.svg))*
 
 ## How it works
 
@@ -38,8 +44,8 @@ per element — the key cost pattern for ML in Beam.
 ## Quickstart
 
 ```bash
-git clone <your-repo-url>
-cd <repo>
+git clone https://github.com/SamirSengupta/Apache-Beam-Summit-New-York-2026.git
+cd Apache-Beam-Summit-New-York-2026
 
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
@@ -108,7 +114,8 @@ else in the pipeline changes.
 .
 ├── realtime_fraud_rag_beam.py   # the entire demo (heavily commented)
 ├── requirements.txt             # apache-beam, numpy (faiss optional)
-├── architecture.svg             # pipeline diagram
+├── architecture.png             # pipeline diagram (rendered, for viewing)
+├── architecture.svg             # pipeline diagram (editable vector source)
 ├── README.md
 ├── LICENSE
 └── docs/
