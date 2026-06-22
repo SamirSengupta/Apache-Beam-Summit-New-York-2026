@@ -21,6 +21,19 @@ LLMs into Apache Beam for Live Inference"* (Beam Summit 2026).
 
 *(Editable vector version: [architecture.svg](architecture.svg))*
 
+## Demo
+
+A short walkthrough of the live dashboard: transactions stream in, RAG retrieves
+similar fraud patterns, the LLM classifies each one with a risk score and reason,
+and pulling the model's plug falls back to rules without stopping the stream.
+
+<video src="https://github.com/SamirSengupta/Apache-Beam-Summit-New-York-2026/raw/main/docs/demo_readme.mp4" controls width="100%"></video>
+
+> If the player does not appear, the repo or branch in the URL above does not match
+> yours. Edit it to `https://github.com/<user>/<repo>/raw/<branch>/docs/demo_readme.mp4`.
+> The most reliable alternative is to open the README in the GitHub editor, drag
+> `docs/demo_readme.mp4` into the text box, and paste the upload link it generates.
+
 ## Two versions
 
 | File | What it shows | When to use |
