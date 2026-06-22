@@ -83,6 +83,15 @@ FRAUD_KNOWLEDGE_BASE = [
 
     "Normal behavior: recurring small purchases at grocery stores, transit, "
     "and coffee shops in the cardholder's home city are typical and low risk.",
+
+    "High-velocity cash-out: several large ATM withdrawals or transfers within "
+    "minutes drains a compromised account before it can be frozen.",
+
+    "Crypto and prepaid: large crypto or prepaid-debit purchases from a new device "
+    "are a common way to move stolen funds quickly.",
+
+    "Foreign first-use: a first-ever, high-value purchase in a new country can "
+    "indicate a stolen card being tested abroad.",
 ]
 
 
@@ -114,6 +123,38 @@ INCOMING_TRANSACTIONS = [
     {"id": "TX-1006", "amount": 7300.00, "location": "Austin, US",
      "merchant": "Luxury Electronics",
      "note": "Big purchase on an account with no activity for 8 months."},
+
+    {"id": "TX-1007", "amount": 86.40, "location": "Seattle, US",
+     "merchant": "Whole Foods",
+     "note": "Weekly groceries, in-person chip read in the home city."},
+
+    {"id": "TX-1008", "amount": 4500.00, "location": "Unknown",
+     "merchant": "CoinRamp",
+     "note": "Crypto purchase from a brand-new device and unfamiliar IP."},
+
+    {"id": "TX-1009", "amount": 12.99, "location": "New York, US",
+     "merchant": "Streamly",
+     "note": "Monthly subscription renewal at the usual amount."},
+
+    {"id": "TX-1010", "amount": 14200.00, "location": "Geneva, CH",
+     "merchant": "Maison Horloge",
+     "note": "Luxury watch, first ever purchase abroad on a foreign IP."},
+
+    {"id": "TX-1011", "amount": 48.20, "location": "Dallas, US",
+     "merchant": "Shell",
+     "note": "Fuel purchase at a station the cardholder uses often."},
+
+    {"id": "TX-1012", "amount": 3000.00, "location": "Houston, US",
+     "merchant": "ATM Network",
+     "note": "Three large ATM withdrawals within nine minutes."},
+
+    {"id": "TX-1013", "amount": 120.00, "location": "New York, US",
+     "merchant": "Trattoria Bella",
+     "note": "Dinner paid in person at a local restaurant."},
+
+    {"id": "TX-1014", "amount": 2000.00, "location": "Newark, US",
+     "merchant": "PrepaidPlus",
+     "note": "Three prepaid debit loads of 2000 dollars back to back."},
 ]
 
 
@@ -232,20 +273,39 @@ def parse_verdict(text: str) -> dict | None:
 
 
 def rule_based_fallback(tx: dict, contexts) -> dict:
-    """Keeps the demo alive if the LLM is unreachable. Simple, transparent."""
+    """Keeps the demo alive if the LLM is unreachable. Deterministic and
+    transparent: it inspects the transaction the way a hand-written rules engine
+    would, so "pull the plug" still produces sensible verdicts on every case."""
     note = tx["note"].lower()
+    merch = tx["merchant"].lower()
+    text = note + " " + merch
+    country = tx["location"].split(",")[-1].strip()
     amount = tx["amount"]
     risk = 10
     reasons = []
-    if "minutes" in note and ("country" in note or "abroad" in note or
-                              tx["location"].split(",")[-1].strip() not in ("US",)):
-        risk = max(risk, 90); reasons.append("impossible travel")
-    if "gift card" in note or "giftcard" in tx["merchant"].lower():
-        risk = max(risk, 80); reasons.append("high-risk merchant")
+    # impossible travel: same card in another country within minutes
+    if "minute" in note and ("country" in note or "abroad" in note or country not in ("US",)):
+        risk = max(risk, 92); reasons.append("impossible travel")
+    # high-risk payout instruments: gift cards, crypto, prepaid debit
+    if "gift card" in text or "giftcard" in merch or "crypto" in text or "prepaid" in text:
+        risk = max(risk, 80); reasons.append("high-risk payout instrument")
+    # high-velocity cash-out: several large ATM withdrawals/transfers in minutes
+    if ("atm" in text or "withdrawal" in note or "cash-out" in note) and \
+       ("minute" in note or "within" in note or "back to back" in note or "three" in note):
+        risk = max(risk, 80); reasons.append("high-velocity cash-out")
+    # structuring: amount deliberately just under the 10k reporting threshold
     if 9000 <= amount < 10000:
         risk = max(risk, 75); reasons.append("just under reporting threshold")
-    if "no activity" in note or "inactive" in note:
+    # dormant-account spike: big charge on a long-inactive account
+    if "no activity" in note or "inactive" in note or "dormant" in note:
         risk = max(risk, 70); reasons.append("dormant-account spike")
+    # foreign first-use: first-ever high-value purchase in a new country
+    if "first" in note and ("abroad" in note or "foreign" in note or "new country" in note) and country not in ("US",):
+        risk = max(risk, 70); reasons.append("foreign first-use")
+    # unrecognized device / IP
+    if "new device" in note or "unfamiliar ip" in note or "foreign ip" in note:
+        risk = max(risk, 70); reasons.append("unrecognized device or IP")
+    # card testing: many small charges in quick succession
     if "separate" in note and "card" in note:
         risk = max(risk, 65); reasons.append("possible card testing")
     verdict = "FRAUD" if risk >= 80 else "REVIEW" if risk >= 50 else "LEGIT"

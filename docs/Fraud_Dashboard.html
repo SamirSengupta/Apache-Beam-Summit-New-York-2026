@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Real-Time Fraud Detection — Live on Apache Beam</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0E1116; --white:#fff; --paper:#FAFBFC; --line:#E6E8EC; --line2:#EEF1F4;
+  --mut:#6B7280; --dim:#9AA3B2; --accent:#2D5BE3; --navy:#1E2A6E; --teal:#2E8AA6; --gray:#EEF1F4;
+  --red:#E0413B; --amber:#C77D11; --green:#1E9E6A;
+  --mono:'JetBrains Mono',monospace; --sans:'Inter',system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:var(--sans);color:var(--ink);background:var(--white);overflow:hidden;
+  background-image:radial-gradient(900px 500px at 100% -5%,rgba(45,91,227,.05),transparent 60%);}
+.app{display:flex;flex-direction:column;height:100vh;padding:16px 22px 10px;gap:12px}
+.eb{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
+.dot{color:var(--accent)}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.brand{font-weight:900;font-size:16px;letter-spacing:-.02em}
+.brand .x{color:var(--mut);font-weight:600;margin:0 6px}
+.title{display:flex;align-items:center;gap:14px}
+.title h1{font-size:21px;font-weight:900;letter-spacing:-.02em}
+.live{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--green);background:rgba(30,158,106,.08);border:1px solid rgba(30,158,106,.25);
+  padding:5px 11px;border-radius:999px}
+.bdot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 1.4s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.meta{font-family:var(--mono);font-size:11px;color:var(--mut)}
+
+/* grid */
+.grid{flex:1;display:grid;grid-template-columns:.95fr 1.5fr 1.2fr;gap:14px;min-height:0}
+.col{display:flex;flex-direction:column;gap:14px;min-height:0}
+.card{background:var(--white);border:1px solid var(--line);border-radius:18px;box-shadow:0 1px 2px rgba(16,18,27,.02)}
+.hd{padding:13px 16px 0}
+.pad{padding:14px 16px}
+
+/* stream */
+.stream{flex:1;overflow:hidden;display:flex;flex-direction:column}
+#stream{padding:10px 13px;display:flex;flex-direction:column;gap:9px;overflow-y:auto;min-height:0}
+.txc{border:1px solid var(--line);background:var(--white);border-radius:13px;padding:11px 13px;
+  transform:translateY(-12px);opacity:0;animation:slidein .4s forwards}
+.txc.proc{border-color:rgba(45,91,227,.45);box-shadow:0 0 0 3px rgba(45,91,227,.07)}
+@keyframes slidein{to{transform:none;opacity:1}}
+.txc .r1{display:flex;justify-content:space-between;align-items:baseline}
+.txc .amt{font-weight:900;font-size:17px;letter-spacing:-.01em}
+.txc .merch{font-size:13px;font-weight:700;margin-top:1px}
+.txc .loc{font-family:var(--mono);font-size:11px;color:var(--mut)}
+.txc .note{font-size:11.5px;color:var(--mut);margin-top:5px;line-height:1.35}
+.txc .t{font-family:var(--mono);font-size:10px;color:var(--dim)}
+
+/* pipeline */
+.pipe{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 6px}
+.node{flex:1;text-align:center}
+.node .ring{width:58px;height:58px;border-radius:50%;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;
+  border:1.5px solid var(--line);background:var(--white);color:var(--dim);font-weight:800;font-size:17px;transition:.3s}
+.node.on .ring{border-color:var(--accent);color:#fff;background:var(--accent);
+  box-shadow:0 0 0 5px rgba(45,91,227,.12),0 10px 24px rgba(45,91,227,.25);transform:scale(1.07)}
+.node .lab{font-size:12px;font-weight:800} .node .sub{font-family:var(--mono);font-size:9.5px;color:var(--dim)}
+.conn{height:2px;flex:.45;background:var(--line);border-radius:2px;position:relative;margin:0 -4px 28px}
+.conn.flow::after{content:"";position:absolute;top:-2px;left:0;width:16px;height:6px;border-radius:3px;
+  background:var(--accent);box-shadow:0 0 10px rgba(45,91,227,.6);animation:travel .7s linear infinite}
+@keyframes travel{from{left:-12%}to{left:100%}}
+
+/* rag */
+.rag .row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line2)}
+.rag .row:last-child{border-bottom:none}
+.rag .pat{flex:1;font-size:13px;font-weight:600}
+.rag .sim{font-family:var(--mono);font-size:11px;color:var(--teal);font-weight:600;min-width:34px;text-align:right}
+.rag .bw{width:96px;height:6px;background:var(--line2);border-radius:3px;overflow:hidden}
+.rag .bar{height:100%;background:var(--teal);width:0;transition:width .6s}
+.muted{color:var(--dim);font-size:12px;padding:8px 0}
+
+/* verdict */
+.verdict{display:grid;grid-template-columns:142px 1fr;gap:18px;align-items:center}
+.gauge{position:relative;width:142px;height:142px;margin:auto}
+.gauge .val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.gauge .num{font-size:33px;font-weight:900;letter-spacing:-.02em}
+.gauge .cap{font-family:var(--mono);font-size:9.5px;color:var(--dim);letter-spacing:.16em}
+.vmeta .badge{display:inline-block;font-weight:800;font-size:14px;padding:6px 14px;border-radius:9px;letter-spacing:.02em}
+.vmeta .reason{margin-top:12px;font-size:14px;line-height:1.45}
+.vmeta .src{margin-top:9px;font-family:var(--mono);font-size:11px;color:var(--mut)}
+.bg-FRAUD{background:rgba(224,65,59,.1);color:var(--red);border:1px solid rgba(224,65,59,.28)}
+.bg-LEGIT{background:rgba(30,158,106,.1);color:var(--green);border:1px solid rgba(30,158,106,.28)}
+.bg-REVIEW{background:rgba(199,125,17,.1);color:var(--amber);border:1px solid rgba(199,125,17,.28)}
+.f-FRAUD{color:var(--red)} .f-LEGIT{color:var(--green)} .f-REVIEW{color:var(--amber)}
+
+/* metrics bento */
+.tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px}
+.tile{border-radius:15px;padding:14px 15px;min-height:80px;display:flex;flex-direction:column;justify-content:space-between}
+.tile .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.8}
+.tile .v{font-size:26px;font-weight:900;letter-spacing:-.02em;margin-top:6px}
+.t-navy{background:var(--navy);color:#fff} .t-teal{background:var(--teal);color:#fff}
+.t-ink{background:var(--ink);color:#fff} .t-red{background:var(--red);color:#fff}
+.t-amber{background:var(--amber);color:#fff} .t-gray{background:var(--gray);color:var(--ink)}
+
+/* chart */
+.chart{display:flex;align-items:flex-end;gap:7px;height:86px;padding:16px 16px 12px}
+.cbar{flex:1;background:var(--line2);border-radius:5px 5px 0 0;position:relative;display:flex;align-items:flex-end;min-width:0}
+.cbar .fill{width:100%;background:var(--accent);border-radius:5px 5px 0 0;transition:height .5s}
+.cbar .pct{position:absolute;top:-17px;left:0;right:0;text-align:center;font-family:var(--mono);font-size:10px;color:var(--mut)}
+
+/* feeds */
+.feeds{flex:1;display:grid;grid-template-rows:1fr 1fr;gap:14px;min-height:0}
+.feed{overflow:hidden;display:flex;flex-direction:column}
+.feed .list{padding:8px 14px;display:flex;flex-direction:column;gap:7px;overflow:hidden}
+.fi{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:7px 11px;border-radius:9px;
+  transform:translateX(12px);opacity:0;animation:slidex .4s forwards}
+@keyframes slidex{to{transform:none;opacity:1}}
+.fi.fraud{background:rgba(224,65,59,.07);border:1px solid rgba(224,65,59,.18)}
+.fi.clear{background:rgba(30,158,106,.06);border:1px solid rgba(30,158,106,.16)}
+.fi .m{color:var(--mut);font-family:var(--mono);font-size:11px}
+.fi .v{font-family:var(--mono);font-size:11px;font-weight:600}
+
+/* footer */
+.foot{display:flex;align-items:center;justify-content:space-between;padding-top:8px;border-top:1px solid var(--line)}
+.ctrl{display:flex;align-items:center;gap:11px}
+.btn{font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--white);border:1px solid var(--line);
+  border-radius:10px;padding:8px 15px;cursor:pointer;transition:.2s}
+.btn:hover{background:var(--paper)}
+.btn.warn{color:var(--amber);border-color:rgba(199,125,17,.4)} .btn.warn.on{background:rgba(199,125,17,.1)}
+.hint{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.copy{font-family:var(--mono);font-size:11px;color:var(--mut)}
+.copy b{color:var(--ink);font-weight:800}
+.txc{cursor:pointer}.txc.sel{border-color:var(--accent)!important;box-shadow:0 0 0 3px rgba(45,91,227,.16)!important}#stream::-webkit-scrollbar{width:6px}#stream::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">samcodeman<span class="dot">.</span><span class="x">&times;</span>Apache Beam</div>
+    <div class="title"><h1>Real-Time Fraud Detection</h1>
+      <span class="live"><span class="bdot"></span> <span id="livetag">live on apache beam</span></span></div>
+    <div class="meta" id="clock">--:--:--</div>
+  </header>
+
+  <div class="grid">
+    <!-- stream -->
+    <section class="col">
+      <div class="card stream">
+        <div class="hd"><div class="eb">Incoming transactions &middot; streaming</div></div>
+        <div id="stream"><div class="muted" style="padding:14px">connecting to the pipeline...</div></div>
+      </div>
+    </section>
+
+    <!-- center -->
+    <section class="col">
+      <div class="card">
+        <div class="hd"><div class="eb">Apache Beam pipeline</div></div>
+        <div class="pipe">
+          <div class="node" id="n-source"><div class="ring">01</div><div class="lab">Source</div><div class="sub">Kafka stream</div></div>
+          <div class="conn" id="c1"></div>
+          <div class="node" id="n-rag"><div class="ring">02</div><div class="lab">RAG</div><div class="sub">vector search</div></div>
+          <div class="conn" id="c2"></div>
+          <div class="node" id="n-llm"><div class="ring">03</div><div class="lab">LLM</div><div class="sub" id="llmsub">RunInference</div></div>
+          <div class="conn" id="c3"></div>
+          <div class="node" id="n-route"><div class="ring">04</div><div class="lab">Route</div><div class="sub">tagged out</div></div>
+        </div>
+      </div>
+      <div class="card rag" style="min-height:116px">
+        <div class="hd"><div class="eb">RAG &middot; retrieved fraud patterns</div></div>
+        <div class="pad" id="rag"><div class="muted">waiting for a transaction...</div></div>
+      </div>
+      <div class="card" style="flex:1">
+        <div class="hd"><div class="eb">LLM verdict</div></div>
+        <div class="pad verdict">
+          <div class="gauge"><svg viewBox="0 0 120 120" width="142" height="142">
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#EEF1F4" stroke-width="11"/>
+            <circle id="garc" cx="60" cy="60" r="50" fill="none" stroke="var(--accent)" stroke-width="11"
+              stroke-linecap="round" stroke-dasharray="314" stroke-dashoffset="314" transform="rotate(-90 60 60)"/>
+          </svg><div class="val"><div class="num" id="gnum">--</div><div class="cap">RISK</div></div></div>
+          <div class="vmeta"><span class="badge bg-LEGIT" id="vbadge">READY</span>
+            <div class="reason" id="vreason">Streaming transactions through the real pipeline: RAG retrieval, then a live LLM verdict.</div>
+            <div class="src" id="vsrc"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- right -->
+    <section class="col">
+      <div class="tiles">
+        <div class="tile t-navy"><div class="k">Transactions</div><div class="v" id="m-total">0</div></div>
+        <div class="tile t-red"><div class="k">Frauds</div><div class="v" id="m-fraud">0</div></div>
+        <div class="tile t-teal"><div class="k">Fraud rate</div><div class="v" id="m-rate">0%</div></div>
+        <div class="tile t-ink"><div class="k">Avg latency</div><div class="v" id="m-lat">0 ms</div></div>
+        <div class="tile t-gray"><div class="k">Batch size</div><div class="v" id="m-batch">2</div></div>
+        <div class="tile t-amber"><div class="k">Fallbacks</div><div class="v" id="m-fb">0</div></div>
+      </div>
+      <div class="card">
+        <div class="hd"><div class="eb">Fraud rate per 6s window</div></div>
+        <div class="chart" id="chart"></div>
+      </div>
+      <div class="feeds">
+        <div class="card feed"><div class="hd"><div class="eb" style="color:var(--red)">Fraud alerts &rarr; queue</div></div><div class="list" id="feed-fraud"></div></div>
+        <div class="card feed"><div class="hd"><div class="eb" style="color:var(--green)">Cleared &rarr; analytics</div></div><div class="list" id="feed-clear"></div></div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="foot">
+    <div class="ctrl">
+      <button class="btn" id="b-pause">Pause</button>
+      <button class="btn warn" id="b-fb">Pull the model's plug</button>
+      <span class="hint" id="status">model online &middot; verdicts from the LLM</span>
+    </div>
+    <div class="copy">&copy; <span id="yr"></span> <b>samcodeman inc</b> &middot; Real-Time AI Pipelines on Apache Beam</div>
+  </footer>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+let total=0,fraud=0,latSum=0,latN=0,fb=0,winF=0,winT=0,windows=[],curTx=null;const WIN=3;
+let hist=[], es=null, paused=false, done=false;
+function clk(){$('#clock').textContent=new Date().toLocaleTimeString('en-US',{hour12:false});}
+setInterval(clk,1000);clk();$('#yr').textContent=new Date().getFullYear();
+
+function on(id,v){$('#'+id).classList.toggle('on',v);}
+function flow(id,v){$('#'+id).classList.toggle('flow',v);}
+function clearPipe(){['n-source','n-rag','n-llm','n-route'].forEach(n=>on(n,false));['c1','c2','c3'].forEach(c=>flow(c,false));}
+
+function ragHTML(pats){return pats.map(p=>`<div class="row"><span class="pat">${p.name}</span>
+  <div class="bw"><div class="bar" style="width:${Math.min(100,p.sim*100*1.7)}%"></div></div><span class="sim">${p.sim.toFixed(2)}</span></div>`).join('');}
+function setGauge(risk,v,animate){
+  const col=v==='FRAUD'?'var(--red)':v==='REVIEW'?'var(--amber)':'var(--green)';
+  $('#garc').style.stroke=col;$('#garc').style.strokeDashoffset=314-(314*risk/100);$('#gnum').style.color=col;
+  if(animate){let n=0;const t=setInterval(()=>{n+=Math.ceil(risk/16)||1;if(n>=risk){n=risk;clearInterval(t);}$('#gnum').textContent=n;},26);}
+  else $('#gnum').textContent=risk;
+}
+function showDetail(rec){
+  $('#rag').innerHTML = rec.patterns ? ragHTML(rec.patterns) : '<div class="muted">no retrieval recorded</div>';
+  if(rec.verdict){
+    const d=rec.verdict; setGauge(d.risk,d.verdict,false);
+    const b=$('#vbadge');b.className='badge bg-'+d.verdict;b.textContent=d.verdict;
+    $('#vreason').textContent=rec.tx.note+'  —  '+d.reason;
+    $('#vsrc').innerHTML=(d.source==='LLM'?('source: LLM &middot; '+d.latency_ms+' ms'):'source: rule-based fallback')+'  &middot;  '+rec.tx.id;
+  }else{$('#vbadge').className='badge bg-REVIEW';$('#vbadge').textContent='PENDING';$('#vreason').textContent=rec.tx.note;$('#gnum').textContent='--';}
+}
+function selectCard(el){document.querySelectorAll('.txc.sel').forEach(c=>c.classList.remove('sel'));if(el)el.classList.add('sel');}
+
+function onTx(tx){
+  curTx=tx;
+  const s=$('#stream');if(s.querySelector('.muted'))s.innerHTML='';
+  const rec={tx:tx,patterns:null,verdict:null};hist.unshift(rec);
+  const el=document.createElement('div');el.className='txc proc';el.id='cur';el._rec=rec;
+  el.innerHTML=`<div class="r1"><span class="amt">$${Number(tx.amount).toLocaleString('en-US',{minimumFractionDigits:2})}</span>
+    <span class="t">${new Date().toLocaleTimeString('en-US',{hour12:false})}</span></div>
+    <div class="merch">${tx.merchant} <span class="loc">&middot; ${tx.location}</span></div>
+    <div class="note">${tx.note}</div>`;
+  el.onclick=()=>{setPaused(true);selectCard(el);showDetail(el._rec);};
+  document.querySelectorAll('.txc.proc').forEach(c=>{if(c!==el){c.classList.remove('proc');if(c.id==='cur')c.id='';}});
+  s.prepend(el);while(s.children.length>40)s.lastChild.remove();
+  clearPipe();on('n-source',true);setTimeout(()=>flow('c1',true),200);
+}
+function onRag(pats){
+  if(hist[0])hist[0].patterns=pats;
+  on('n-source',false);flow('c1',false);on('n-rag',true);setTimeout(()=>flow('c2',true),250);
+  $('#rag').innerHTML=ragHTML(pats);
+  on('n-llm',true);$('#vbadge').className='badge bg-REVIEW';$('#vbadge').textContent='ANALYZING…';$('#vreason').textContent='Running inference on the retrieved context…';
+}
+function bump(id,val){const e=$('#'+id);e.textContent=val;e.animate([{transform:'scale(1.16)'},{transform:'scale(1)'}],{duration:260});}
+function onVerdict(d){
+  if(hist[0])hist[0].verdict=d;
+  on('n-rag',false);flow('c2',false);on('n-llm',false);flow('c3',true);on('n-route',true);
+  setGauge(d.risk,d.verdict,true);
+  const b=$('#vbadge');b.className='badge bg-'+d.verdict;b.textContent=d.verdict;
+  $('#vreason').textContent=d.reason;
+  $('#vsrc').innerHTML=(d.source==='LLM'?('source: LLM &middot; '+d.latency_ms+' ms'):'source: rule-based fallback (model offline)')+'  &middot;  '+(curTx?curTx.id:'');
+  const cur=$('#cur');if(cur)cur.classList.remove('proc');
+  total++;winT++;latSum+=d.latency_ms;latN++;if(d.verdict==='FRAUD'){fraud++;winF++;}
+  if(d.source==='fallback'){fb++;}
+  bump('m-total',total);bump('m-fraud',fraud);bump('m-rate',Math.round(fraud/total*100)+'%');
+  bump('m-lat',Math.round(latSum/latN)+' ms');bump('m-batch',2+(total%6===0?1:0));bump('m-fb',fb);
+  if(winT>=WIN){windows.push(Math.round(winF/winT*100));if(windows.length>9)windows.shift();renderChart();winF=0;winT=0;}
+  const fraudy=d.verdict==='FRAUD'||d.verdict==='REVIEW';
+  const list=fraudy?$('#feed-fraud'):$('#feed-clear');
+  const merch=curTx?curTx.merchant:'';const amt=curTx?('$'+Number(curTx.amount).toLocaleString('en-US',{minimumFractionDigits:0})):'';
+  const el=document.createElement('div');el.className='fi '+(fraudy?'fraud':'clear');
+  el.innerHTML=`<span>${merch} <span class="m">&middot; ${amt}</span></span><span class="v f-${d.verdict}">${d.verdict} ${d.risk}</span>`;
+  list.prepend(el);while(list.children.length>4)list.lastChild.remove();
+  setTimeout(()=>{on('n-route',false);flow('c3',false);},600);
+}
+function renderChart(){
+  $('#chart').innerHTML=windows.map(p=>`<div class="cbar"><span class="pct">${p}%</span><div class="fill" style="height:0"></div></div>`).join('');
+  requestAnimationFrame(()=>$('#chart').querySelectorAll('.fill').forEach((f,k)=>f.style.height=Math.max(6,windows[k])+'%'));
+}
+
+function resetAll(){
+  total=fraud=latSum=latN=fb=winF=winT=0;windows=[];hist=[];curTx=null;done=false;
+  $('#stream').innerHTML='<div class="muted">connecting to the pipeline\u2026</div>';
+  const set=(id,v)=>{const e=$('#'+id);if(e)e.textContent=v;};
+  set('m-total','0');set('m-fraud','0');set('m-rate','0%');set('m-lat','0 ms');set('m-batch','0');set('m-fb','0');
+  const ff=$('#feed-fraud'),fc=$('#feed-clear');if(ff)ff.innerHTML='';if(fc)fc.innerHTML='';
+  $('#rag').innerHTML='<div class="muted">waiting for the first transaction\u2026</div>';
+  renderChart();clearPipe();
+}
+function updatePause(){const b=$('#b-pause');b.textContent=paused?'Resume stream':'Pause';b.classList.toggle('on',paused);}
+function setPaused(p){
+  paused=p;updatePause();
+  if(p){ if(es){es.close();es=null;} $('#livetag').textContent='paused — click any card to inspect'; }
+  else { selectCard(null); $('#livetag').textContent='live'; connect(); }
+}
+$('#b-pause').onclick=function(){
+  if(done){ resetAll(); paused=false; $('#b-pause').classList.remove('on'); updatePause(); connect(); return; }
+  setPaused(!paused);
+};
+$('#b-fb').onclick=function(){
+  fetch('/toggle').then(r=>r.json()).then(d=>{
+    this.classList.toggle('on',d.fallback);
+    $('#status').innerHTML=d.fallback?'model OFFLINE &middot; verdicts from rule-based fallback':'model online &middot; verdicts from the LLM';
+    if(!paused)$('#livetag').textContent=d.fallback?'fallback active':'live';
+    $('#llmsub').textContent=d.fallback?'FALLBACK':'RunInference';
+  }).catch(()=>{});
+};
+
+function connect(){
+  done=false;
+  es=new EventSource('/events');
+  es.addEventListener('hello',e=>{const d=JSON.parse(e.data);if(!paused)$('#livetag').textContent='live · '+d.backend+' index';});
+  es.addEventListener('tx',e=>{if(!paused)onTx(JSON.parse(e.data));});
+  es.addEventListener('rag',e=>{if(!paused)onRag(JSON.parse(e.data).patterns);});
+  es.addEventListener('verdict',e=>{if(!paused)onVerdict(JSON.parse(e.data));});
+  es.addEventListener('done',e=>{const d=JSON.parse(e.data);done=true;if(es){es.close();es=null;}clearPipe();
+    $('#livetag').textContent='stream complete · '+d.count+' processed';
+    const b=$('#b-pause');b.textContent='Replay stream';b.classList.add('on');});
+  es.onerror=()=>{if(done)return;const s=$('#stream');if(s&&!s.querySelector('.txc'))s.innerHTML='<div class="muted" style="padding:14px">Run <b>python dashboard_server.py</b> and open http://127.0.0.1:8800</div>';};
+}
+renderChart();connect();
+</script>
+</body>
+</html>
